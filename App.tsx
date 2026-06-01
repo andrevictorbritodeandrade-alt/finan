@@ -599,6 +599,15 @@ const App: React.FC = () => {
                 const isVivoMarcelly = desc.includes("VIVO") && desc.includes("MARCELLY");
                 return !(isVivoAndre || isVivoMarcelly);
             });
+
+            // 5. Adjust "REMÉDIOS DO ANDRÉ" to 170.00 and mark as paid (bought last Wednesday, May 27, 2026)
+            data.expenses = data.expenses.map(e => {
+                const desc = e.description.toUpperCase();
+                if (desc.includes("REMÉDIOS DO ANDRÉ") || desc.includes("REMEDIOS DO ANDRE")) {
+                    return { ...e, amount: 170.00, paid: true, paidAt: '2026-05-27' };
+                }
+                return e;
+            });
         }
 
         return data;
@@ -798,7 +807,7 @@ const App: React.FC = () => {
         if (!monthData) return { 
             salary: { total: 0, paid: 0 }, 
             combined: { total: 0, paid: 0 }, 
-            realExpenses: { total: 0, paid: 0 },
+            realExpenses: { total: 0, paid: 0, unpaid: 0 },
             surplusRaw: 0
         };
 
@@ -822,13 +831,14 @@ const App: React.FC = () => {
 
         const sum = (arr: Transaction[]) => arr.reduce((acc, t) => acc + Number(t.amount || 0), 0);
         const sumPaid = (arr: Transaction[]) => arr.filter(t => t.paid).reduce((acc, t) => acc + Number(t.amount || 0), 0);
+        const sumUnpaid = (arr: Transaction[]) => arr.filter(t => !t.paid).reduce((acc, t) => acc + Number(t.amount || 0), 0);
 
         const surplusRaw = sum(combined) - sum(realExpenses);
 
         return {
             salary: { total: sum(salary), paid: sumPaid(salary) },
             combined: { total: sum(combined), paid: sumPaid(combined) },
-            realExpenses: { total: sum(realExpenses), paid: sumPaid(realExpenses) },
+            realExpenses: { total: sum(realExpenses), paid: sumPaid(realExpenses), unpaid: sumUnpaid(realExpenses) },
             surplusRaw
         };
     }, [monthData, currentYear, currentMonth]);
@@ -841,6 +851,10 @@ const App: React.FC = () => {
         const latest = sorted[0];
         return latest.santander + latest.inter + latest.sofisa;
     }, [monthData]);
+
+    const sobraReal = useMemo(() => {
+        return latestDailyBalance - stats.realExpenses.unpaid;
+    }, [latestDailyBalance, stats.realExpenses.unpaid]);
 
     // Group Debts by Person
     const groupedDebts = useMemo(() => {
@@ -1007,7 +1021,7 @@ const App: React.FC = () => {
                                 {activeTab === 'overview' && (
                                     <>
                                         {/* BALANCE OVERVIEW CARD */}
-                                        <div className={`${stats.surplusRaw < 0 ? 'bg-gradient-to-br from-rose-500 to-red-600' : 'bg-gradient-to-br from-teal-500 to-emerald-600'} rounded-3xl lg:rounded-[2.5rem] p-4 lg:p-8 text-white shadow-2xl shadow-emerald-200 border border-white/20 mb-6 lg:mb-8 relative overflow-hidden group`}>
+                                        <div className={`${sobraReal < 0 ? 'bg-gradient-to-br from-rose-500 to-red-600' : 'bg-gradient-to-br from-teal-500 to-emerald-600'} rounded-3xl lg:rounded-[2.5rem] p-4 lg:p-8 text-white shadow-2xl shadow-emerald-200 border border-white/20 mb-6 lg:mb-8 relative overflow-hidden group`}>
                                             <div className="absolute top-[-20%] right-[-10%] w-64 h-64 bg-emerald-400/20 blur-[80px] rounded-full"></div>
                                             <div className="absolute bottom-[-10%] left-[-5%] w-48 h-48 bg-emerald-400/20 blur-[60px] rounded-full"></div>
                                             
@@ -1021,22 +1035,22 @@ const App: React.FC = () => {
                                                         <div className="flex items-center gap-1.5 lg:gap-2">
                                                             <div className="w-1 h-1 lg:w-1.5 lg:h-1.5 rounded-full bg-emerald-400 animate-pulse"></div>
                                                             <span className="text-[10px] lg:text-sm font-black opacity-90 uppercase tracking-widest leading-none">
-                                                                {stats.surplusRaw < 0 ? 'ALERTA: NEGATIVO • ' : 'ESTÁVEL • '}
-                                                                {Math.round((stats.surplusRaw / (stats.combined.total || 1)) * 100)}% de sobra
+                                                                {sobraReal < 0 ? 'ALERTA: CAIXA EM DIA NEGATIVO • ' : 'SALDO ATIVO EM DIA • '}
+                                                                {Math.round((sobraReal / (latestDailyBalance || 1)) * 100)}% de sobra real/atual
                                                             </span>
                                                         </div>
                                                     </div>
                                                 </div>
                                                 
-                                                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 lg:gap-6">
+                                                <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 lg:gap-4 xl:gap-6">
                                                     <div 
                                                         onClick={() => {
                                                             setView('transactions');
                                                             setTransactionListType('incomes');
                                                         }}
-                                                        className="flex flex-col gap-0.5 lg:gap-1 cursor-pointer hover:bg-white/10 p-1.5 lg:p-2 rounded-xl lg:rounded-2xl transition-all group/stat"
+                                                        className="flex flex-col gap-0.5 lg:gap-1 cursor-pointer hover:bg-white/10 p-1.5 lg:p-2 rounded-xl lg:rounded-2xl transition-all group/stat col-span-1"
                                                     >
-                                                        <span className="text-[9px] lg:text-sm font-black uppercase tracking-widest opacity-80 group-hover/stat:opacity-100 flex items-center gap-1">
+                                                        <span className="text-[9px] lg:text-sm font-black uppercase tracking-widest opacity-80 group-hover/stat:opacity-100 flex items-center gap-1 flex-wrap">
                                                             Receitas (Entradas)
                                                             <ArrowRight size={10} className="lg:w-3.5 lg:h-3.5 opacity-0 group-hover/stat:opacity-100 transition-all -translate-x-2 group-hover/stat:translate-x-0" />
                                                         </span>
@@ -1048,7 +1062,7 @@ const App: React.FC = () => {
                                                         <div className="flex items-center gap-1.5 lg:gap-2 mt-0.5">
                                                             <div className="flex-1 bg-white/10 h-1 rounded-full overflow-hidden">
                                                                 <div 
-                                                                    className={`h-full rounded-full ${stats.surplusRaw < 0 ? 'bg-red-200' : 'bg-white'}`} 
+                                                                    className={`h-full rounded-full ${sobraReal < 0 ? 'bg-red-200' : 'bg-white'}`} 
                                                                     style={{ width: `${Math.min(100, (stats.realExpenses.total / (stats.combined.total || 1)) * 100)}%` }}
                                                                 ></div>
                                                             </div>
@@ -1063,9 +1077,9 @@ const App: React.FC = () => {
                                                                 trackerElement.scrollIntoView({ behavior: 'smooth' });
                                                             }
                                                         }}
-                                                        className="flex flex-col gap-0.5 lg:gap-1 cursor-pointer hover:bg-white/10 p-1.5 lg:p-2 rounded-xl lg:rounded-2xl transition-all group/stat"
+                                                        className="flex flex-col gap-0.5 lg:gap-1 cursor-pointer hover:bg-white/10 p-1.5 lg:p-2 rounded-xl lg:rounded-2xl transition-all group/stat col-span-1"
                                                     >
-                                                        <span className="text-[9px] lg:text-sm font-black uppercase tracking-widest opacity-80 group-hover/stat:opacity-100 flex items-center gap-1 text-emerald-100">
+                                                        <span className="text-[9px] lg:text-sm font-black uppercase tracking-widest opacity-80 group-hover/stat:opacity-100 flex items-center gap-1 text-emerald-100 flex-wrap">
                                                             Receita Real (Contas)
                                                             <ArrowRight size={10} className="lg:w-3.5 lg:h-3.5 opacity-0 group-hover/stat:opacity-100 transition-all -translate-x-2 group-hover/stat:translate-x-0" />
                                                         </span>
@@ -1084,9 +1098,9 @@ const App: React.FC = () => {
                                                             setView('transactions');
                                                             setTransactionListType('expenses');
                                                         }}
-                                                        className="flex flex-col gap-0.5 lg:gap-1 cursor-pointer hover:bg-white/10 p-1.5 lg:p-2 rounded-xl lg:rounded-2xl transition-all group/stat"
+                                                        className="flex flex-col gap-0.5 lg:gap-1 cursor-pointer hover:bg-white/10 p-1.5 lg:p-2 rounded-xl lg:rounded-2xl transition-all group/stat col-span-2 lg:col-span-1"
                                                     >
-                                                        <span className="text-[9px] lg:text-sm font-black uppercase tracking-widest opacity-80 group-hover/stat:opacity-100 flex items-center gap-1">
+                                                        <span className="text-[9px] lg:text-sm font-black uppercase tracking-widest opacity-80 group-hover/stat:opacity-100 flex items-center gap-1 flex-wrap">
                                                             Despesas
                                                             <ArrowRight size={10} className="lg:w-3.5 lg:h-3.5 opacity-0 group-hover/stat:opacity-100 transition-all -translate-x-2 group-hover/stat:translate-x-0" />
                                                         </span>
@@ -1105,12 +1119,27 @@ const App: React.FC = () => {
                                                         </div>
                                                     </div>
 
-                                                    <div className={`col-span-1 ${stats.surplusRaw < 0 ? 'bg-red-400/20' : 'bg-emerald-400/20'} backdrop-blur-md rounded-xl lg:rounded-2xl p-2.5 lg:p-4 border border-white/20 flex flex-col gap-0.5 shadow-inner group-hover:bg-emerald-400/30 transition-all text-emerald-950`}>
-                                                        <span className="text-[9px] lg:text-sm font-black uppercase tracking-widest opacity-80 text-white">Sobra Real</span>
+                                                    <div className="flex flex-col gap-0.5 lg:gap-1 p-1.5 lg:p-2 rounded-xl lg:rounded-2xl border border-white/10 bg-white/5 col-span-1">
+                                                        <span className="text-[9px] lg:text-sm font-black uppercase tracking-widest opacity-85 text-white">Sobra Ideal</span>
                                                         <div className="flex items-baseline gap-1">
-                                                            <span className="text-lg lg:text-2xl font-black tracking-tighter text-white">
+                                                            <span className="text-base lg:text-2xl font-black tracking-tighter text-white">
                                                                 {formatCurrency(stats.surplusRaw)}
                                                             </span>
+                                                        </div>
+                                                        <div className="text-[8px] lg:text-[10px] font-black uppercase tracking-widest leading-none text-slate-100 opacity-80 mt-1 whitespace-nowrap">
+                                                            Planejada (Simulação)
+                                                        </div>
+                                                    </div>
+
+                                                    <div className={`col-span-1 ${sobraReal < 0 ? 'bg-red-400/20 border-red-300' : 'bg-emerald-400/20 border-emerald-300'} backdrop-blur-md rounded-xl lg:rounded-2xl p-2.5 lg:p-4 border flex flex-col gap-0.5 shadow-inner transition-all hover:bg-emerald-400/30 text-white`}>
+                                                        <span className="text-[9px] lg:text-sm font-black uppercase tracking-widest opacity-95 text-white">Sobra Real</span>
+                                                        <div className="flex items-baseline gap-1">
+                                                            <span className="text-base lg:text-2xl font-black tracking-tighter text-white">
+                                                                {formatCurrency(sobraReal)}
+                                                            </span>
+                                                        </div>
+                                                        <div className={`text-[8px] lg:text-[10px] font-black uppercase tracking-widest leading-none mt-1 ${sobraReal < 0 ? 'text-red-200' : 'text-emerald-100'}`}>
+                                                            Atual (Hoje)
                                                         </div>
                                                     </div>
                                                 </div>

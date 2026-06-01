@@ -115,17 +115,6 @@ const DailyBalanceTracker: React.FC<DailyBalanceTrackerProps> = ({ dailyBalances
                 </button>
             </div>
 
-            {/* Note alert to remind them not to count on ideal values */}
-            <div className="bg-amber-50/70 border border-amber-100 rounded-2xl p-4 flex gap-3 text-amber-800">
-                <AlertCircle size={20} className="shrink-0 mt-0.5 text-amber-600" strokeWidth={2.5} />
-                <div className="flex flex-col gap-0.5 text-xs">
-                    <span className="font-black">Entendimento Vital: Saldo Real vs. Saldo Ideal</span>
-                    <span className="font-bold opacity-80 leading-relaxed">
-                        Os saldos das contas mudam diariamente e nem sempre correspondem ao planejamento ideal. Use este controle diário para registrar o dinheiro concreto palpável livre e planejar os pagamentos de hoje com realismo!
-                    </span>
-                </div>
-            </div>
-
             {/* Form */}
             {isFormOpen && (
                 <form onSubmit={handleSubmit} className="bg-white/90 border border-slate-100 shadow-xl rounded-2xl p-5 flex flex-col gap-4 animate-fadeIn">
@@ -187,7 +176,7 @@ const DailyBalanceTracker: React.FC<DailyBalanceTrackerProps> = ({ dailyBalances
 
                         <div className="flex flex-col gap-1.5">
                             <label className="text-[10px] font-black uppercase text-emerald-600 flex items-center gap-1">
-                                <Building2 size={10} /> Sofisa (Real)
+                                <Building2 size={10} /> Sofisa (Contas Fixas Reservadas)
                             </label>
                             <div className="relative">
                                 <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-400">R$</span>
@@ -267,7 +256,9 @@ const DailyBalanceTracker: React.FC<DailyBalanceTrackerProps> = ({ dailyBalances
                                         <span className="text-xs font-extrabold text-white">{formatCurrency(latestBalance.inter)}</span>
                                     </div>
                                     <div className="flex flex-col">
-                                        <span className="text-[9px] font-black uppercase text-slate-405">Sofisa</span>
+                                        <span className="text-[9px] font-black uppercase text-slate-405 flex items-center justify-center gap-1">
+                                            Sofisa <span className="text-[8px] font-bold text-emerald-400 opacity-90">(Contas Fixas)</span>
+                                        </span>
                                         <span className="text-xs font-extrabold text-white">{formatCurrency(latestBalance.sofisa)}</span>
                                     </div>
                                 </div>
@@ -312,7 +303,7 @@ const DailyBalanceTracker: React.FC<DailyBalanceTrackerProps> = ({ dailyBalances
                                                     <span className="text-slate-300">•</span>
                                                     <span className="text-orange-500">INT: R$ {log.inter.toFixed(2)}</span>
                                                     <span className="text-slate-300">•</span>
-                                                    <span className="text-emerald-600">SOF: R$ {log.sofisa.toFixed(2)}</span>
+                                                    <span className="text-emerald-600">SOF (Contas Fixas): R$ {log.sofisa.toFixed(2)}</span>
                                                 </div>
                                                 {log.notes && (
                                                     <span className="text-[10px] font-bold text-slate-500 bg-slate-50 px-2 py-0.5 rounded-md mt-1 italic block max-w-md truncate">

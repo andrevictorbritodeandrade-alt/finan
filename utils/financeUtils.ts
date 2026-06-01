@@ -122,6 +122,7 @@ export const generateMonthData = (year: number, month: number): MonthData => {
         let finalAmount = c.amount;
         let isPaid = false;
         let isSuspended = false;
+        let paidAtStr: string | undefined = undefined;
         
         if (isFeb2026 && (c.description.includes("CLARO ANDRÉ") || c.description.includes("VIVO ANDRÉ"))) {
             return; 
@@ -148,6 +149,15 @@ export const generateMonthData = (year: number, month: number): MonthData => {
             }
         }
 
+        // Remédios do André is adjusted to 170 reais starting June 2026 and marked as paid (bought on May 27, 2026)
+        if (c.description.toUpperCase().includes("REMÉDIOS DO ANDRÉ") || c.description.toUpperCase().includes("REMEDIOS DO ANDRE")) {
+            if (year === 2026 && month >= 6) {
+                finalAmount = 170.00;
+                isPaid = true;
+                paidAtStr = "2026-05-27";
+            }
+        }
+
         if (isJan2026) {
             if (c.description.includes("ITAÚ")) finalAmount = 56.40;
             if (paidInJan2026.some(p => c.description.toUpperCase().includes(p))) isPaid = true;
@@ -170,7 +180,8 @@ export const generateMonthData = (year: number, month: number): MonthData => {
             paid: isPaid || (c.amount === 0 && (month >= 4)), // Auto-pay zeroed items
             dueDate: `${year}-${month.toString().padStart(2,'0')}-${c.day.toString().padStart(2,'0')}`,
             group: c.group,
-            isSuspended: isSuspended
+            isSuspended: isSuspended,
+            paidAt: paidAtStr
         });
     });
 

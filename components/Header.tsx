@@ -114,7 +114,7 @@ const Header: React.FC<HeaderProps> = ({
                          </div>
                      </div>
                      <div className="bg-emerald-600 rounded-xl p-1.5 lg:p-3 text-white shadow-md text-center overflow-hidden">
-                         <div className="text-[9px] lg:text-[11px] font-black uppercase text-white/70 truncate">Sofisa</div>
+                         <div className="text-[9px] lg:text-[11px] font-black uppercase text-white/70 truncate" title="Sofisa (Contas Fixas)">Sofisa (Ct. Fixas)</div>
                          <div className="flex justify-center items-center">
                             <span className="text-[10px] lg:text-sm font-black text-white/80">R$</span>
                              <input 
