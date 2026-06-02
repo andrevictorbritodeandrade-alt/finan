@@ -17,6 +17,7 @@ export interface Transaction {
   installments?: InstallmentInfo;
   group?: string; // New field for grouping (Fixed vs Variable)
   paidAt?: string;
+  userModifiedPaid?: boolean; // Flag to indicate if user manually toggled 'paid' status
   isDistribution?: boolean; // Flag to identify surplus allocation items
   isSuspended?: boolean; // New field to suspend a transaction
   suspendedUntil?: string; // Month to resume (e.g. "2026-06")

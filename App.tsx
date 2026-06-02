@@ -274,6 +274,14 @@ const App: React.FC = () => {
 
 
     const ensureSystemIntegrity = (data: MonthData, year: number, month: number): MonthData => {
+        // PRESERVE USER METADATA: if the user explicitly clicked "paid", don't let hardcoded tweaks override it
+        const originalUserModifications = new Map();
+        [...data.expenses, ...data.avulsosItems, ...data.incomes].forEach(item => {
+            if (item.userModifiedPaid) {
+                originalUserModifications.set(item.id, { paid: item.paid, paidAt: item.paidAt, userModifiedPaid: true });
+            }
+        });
+
         // Initialize debt settlements if missing
         if (!data.debtSettlements || data.debtSettlements.length === 0) {
             data.debtSettlements = [
@@ -610,6 +618,19 @@ const App: React.FC = () => {
             });
         }
 
+        // Apply preserved user states
+        const applyPreserved = (t: Transaction) => {
+            const orig = originalUserModifications.get(t.id);
+            if (orig) {
+                return { ...t, paid: orig.paid, paidAt: orig.paidAt, userModifiedPaid: true };
+            }
+            return t;
+        };
+
+        data.expenses = data.expenses.map(applyPreserved);
+        data.avulsosItems = data.avulsosItems.map(applyPreserved);
+        data.incomes = data.incomes.map(applyPreserved);
+
         return data;
     };
 
@@ -719,7 +740,7 @@ const App: React.FC = () => {
         
         newData[type] = newData[type].map(t => {
             if (t.id === id) {
-                return { ...t, paid, paidAt: paid ? new Date().toISOString() : undefined };
+                return { ...t, paid, paidAt: paid ? new Date().toISOString() : undefined, userModifiedPaid: true };
             }
             return t;
         });
@@ -733,7 +754,7 @@ const App: React.FC = () => {
         const newData = { ...monthData };
         const itemIds = new Set(items.map(i => i.id));
         
-        newData.expenses = newData.expenses.map(e => itemIds.has(e.id) ? { ...e, paid: !allPaid } : e);
+        newData.expenses = newData.expenses.map(e => itemIds.has(e.id) ? { ...e, paid: !allPaid, paidAt: !allPaid ? new Date().toISOString() : undefined, userModifiedPaid: true } : e);
         saveData(newData, currentYear, currentMonth);
     };
 
@@ -748,12 +769,15 @@ const App: React.FC = () => {
         
         let found = false;
         const targetType = type || transactionListType;
+        
+        // Ensure manual edits mark userModifiedPaid if they explicitly deal with payments
+        const finalUpdated = { ...updated, userModifiedPaid: true };
 
         // Helper to check and update
         const tryUpdate = (listName: TransactionType) => {
-            const index = newData[listName].findIndex(t => t.id === updated.id);
+            const index = newData[listName].findIndex(t => t.id === finalUpdated.id);
             if (index !== -1) {
-                newData[listName][index] = updated;
+                newData[listName][index] = finalUpdated;
                 return true;
             }
             return false;
@@ -765,7 +789,7 @@ const App: React.FC = () => {
 
         if (!found) {
             // New transaction
-            newData[targetType] = [updated, ...newData[targetType]];
+            newData[targetType] = [finalUpdated, ...newData[targetType]];
         }
         
         saveData(newData, currentYear, currentMonth);
