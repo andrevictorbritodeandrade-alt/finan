@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { motion } from 'motion/react';
-import { TrendingUp, PiggyBank, GraduationCap, Plane, Wallet, ArrowRight, CheckCircle2, AlertCircle, ShoppingCart, Info, BarChart3, Target, Bike, Flame } from 'lucide-react';
+import { TrendingUp, PiggyBank, GraduationCap, Plane, Wallet, ArrowRight, CheckCircle2, AlertCircle, ShoppingCart, Info, BarChart3, Target, Bike, Flame, Building2 } from 'lucide-react';
 import { MonthData, Transaction, DebtSettlement } from '../types';
 import { formatCurrency, generateMonthData } from '../utils/financeUtils';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar, Cell, LabelList } from 'recharts';
@@ -52,6 +52,113 @@ const Statistics: React.FC<StatisticsProps> = ({ monthData, currentMonth, curren
     }
     return data;
   }, [currentMonth, currentYear]);
+
+  // Evolução do Saldo Bancário Consolidado: Jan a Dez do ano atual
+  const monthlyBalanceData = useMemo(() => {
+    const data = [];
+    const monthNames = [
+      'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun',
+      'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'
+    ];
+    
+    let runningBalance = 0;
+    let hasSeed = false;
+
+    // Primeiro, carregamos ou simulamos os dados de todos os 12 meses do ano atual
+    const allMonthsData = [];
+    for (let m = 1; m <= 12; m++) {
+      let mData = null;
+      
+      if (m === currentMonth) {
+        mData = monthData;
+      } else {
+        const storageKey = `financeData_${currentYear}_${m}`;
+        const local = localStorage.getItem(storageKey);
+        if (local) {
+          try {
+            mData = JSON.parse(local);
+          } catch (e) {
+            console.error(`Failed to parse local data for month ${m}`, e);
+          }
+        }
+      }
+
+      if (!mData) {
+        mData = generateMonthData(currentYear, m);
+      }
+      
+      allMonthsData.push(mData);
+    }
+
+    // Agora, calculamos o saldo consolidado de forma sequencial
+    for (let m = 1; m <= 12; m++) {
+      const mData = allMonthsData[m - 1];
+      let balance = 0;
+      let isProjected = true;
+
+      // 1. Verificamos se existem registros manuais de saldo físico diário
+      if (mData.dailyBalances && mData.dailyBalances.length > 0) {
+        const sorted = [...mData.dailyBalances].sort((a, b) => b.date.localeCompare(a.date));
+        const latest = sorted[0];
+        balance = latest.santander + latest.inter + latest.sofisa;
+        isProjected = false;
+        runningBalance = balance;
+        hasSeed = true;
+      }
+      // 2. Verificamos se existem reservas bancárias inseridas
+      else if (mData.bankReserves) {
+        balance = mData.bankReserves.santander + mData.bankReserves.inter + mData.bankReserves.sofisa;
+        isProjected = false;
+        runningBalance = balance;
+        hasSeed = true;
+      }
+      // 3. Caso contrário, se for um mês passado (m < currentMonth), deduzimos seu saldo a partir do resultado geral daquele mês
+      else if (m < currentMonth) {
+        const totalIncomes = mData.incomes.reduce((a: number, b: any) => a + Number(b.amount || 0), 0);
+        const totalExpenses = mData.expenses.reduce((a: number, b: any) => a + Number(b.amount || 0), 0);
+        const totalAvulsos = mData.avulsosItems ? mData.avulsosItems.reduce((a: number, b: any) => a + Number(b.amount || 0), 0) : 0;
+        const surplus = totalIncomes - totalExpenses - totalAvulsos;
+        balance = Math.max(0, surplus);
+        isProjected = false;
+        runningBalance = balance;
+        hasSeed = true;
+      }
+      // 4. Se for um mês futuro ou atual sem saldos, projetamos com base no saldo acumulado + a sobra projetada do mês
+      else {
+        const totalIncomes = mData.incomes.reduce((a: number, b: any) => a + Number(b.amount || 0), 0);
+        const totalExpenses = mData.expenses.reduce((a: number, b: any) => a + Number(b.amount || 0), 0);
+        const totalAvulsos = mData.avulsosItems ? mData.avulsosItems.reduce((a: number, b: any) => a + Number(b.amount || 0), 0) : 0;
+        const surplus = totalIncomes - totalExpenses - totalAvulsos;
+
+        if (!hasSeed) {
+          balance = Math.max(0, surplus);
+          runningBalance = balance;
+          hasSeed = true;
+        } else {
+          runningBalance = Math.max(0, runningBalance + surplus);
+          balance = runningBalance;
+        }
+        isProjected = true;
+      }
+
+      // Detalhamento de contas reais para exibir no Tooltip
+      const santanderVal = mData.bankReserves?.santander || mData.dailyBalances?.[0]?.santander || 0;
+      const interVal = mData.bankReserves?.inter || mData.dailyBalances?.[0]?.inter || 0;
+      const sofisaVal = mData.bankReserves?.sofisa || mData.dailyBalances?.[0]?.sofisa || 0;
+
+      data.push({
+        name: monthNames[m - 1],
+        monthNum: m,
+        balance: Math.round(balance * 100) / 100,
+        isProjected,
+        santander: Math.round(santanderVal * 100) / 100,
+        inter: Math.round(interVal * 100) / 100,
+        sofisa: Math.round(sofisaVal * 100) / 100,
+      });
+    }
+
+    return data;
+  }, [currentYear, currentMonth, monthData]);
 
   // Settlement Progress Logic
   const settlementProgress = useMemo(() => {
@@ -369,6 +476,133 @@ const Statistics: React.FC<StatisticsProps> = ({ monthData, currentMonth, curren
                 />
               </Area>
             </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* 📊 Consolidated Bank Balance Evolution Chart */}
+      <div id="consolidated-bank-balance-card" className="bg-white rounded-[2rem] lg:rounded-[2.5rem] p-5 lg:p-8 border border-slate-100 shadow-2xl shadow-slate-200/40">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 lg:mb-8">
+            <div className="flex items-center gap-2 lg:gap-3">
+                <div className="p-2 lg:p-3 bg-indigo-50 text-indigo-600 rounded-xl lg:rounded-2xl shadow-sm">
+                    <Building2 size={18} className="lg:w-6 lg:h-6" strokeWidth={3} />
+                </div>
+                <div>
+                    <h2 className="text-base lg:text-xl font-black text-slate-800 tracking-tight">Saldo Bancário Consolidado</h2>
+                    <p className="text-[10px] lg:text-sm font-black text-slate-400">Evolução do patrimônio líquido em conta mês a mês ({currentYear})</p>
+                </div>
+            </div>
+            
+            {/* Visual Indicators for Legends */}
+            <div className="flex items-center gap-4 flex-wrap text-[10px] lg:text-xs">
+                <div className="flex items-center gap-2">
+                    <div className="w-3.5 h-3.5 rounded bg-indigo-600"></div>
+                    <span className="font-black text-slate-500 uppercase tracking-widest">Saldo Real (Fechado)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                    <div className="w-3.5 h-3.5 rounded bg-indigo-200 border border-dashed border-indigo-400"></div>
+                    <span className="font-black text-slate-400 uppercase tracking-widest">Saldo Projetado</span>
+                </div>
+            </div>
+        </div>
+        
+        <div className="h-[250px] lg:h-[350px] w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={monthlyBalanceData} margin={{ top: 20, right: 20, left: 0, bottom: 0 }}>
+              <defs>
+                <linearGradient id="colorRealBar" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#4f46e5" />
+                  <stop offset="100%" stopColor="#6366f1" />
+                </linearGradient>
+                <linearGradient id="colorProjectedBar" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#a5b4fc" stopOpacity={0.6} />
+                  <stop offset="100%" stopColor="#c7d2fe" stopOpacity={0.4} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+              <XAxis 
+                dataKey="name" 
+                axisLine={false} 
+                tickLine={false} 
+                tick={{ fontSize: 10, fontWeight: 900, fill: '#64748b' }} 
+                dy={10}
+              />
+              <YAxis 
+                axisLine={false} 
+                tickLine={false} 
+                tick={{ fontSize: 10, fontWeight: 900, fill: '#64748b' }}
+                tickFormatter={(val) => `R$ ${val}`}
+              />
+              <Tooltip 
+                contentStyle={{ 
+                    borderRadius: '20px', 
+                    border: 'none', 
+                    boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)',
+                    fontWeight: 900,
+                    padding: '16px'
+                }}
+                content={({ active, payload }) => {
+                  if (active && payload && payload.length) {
+                    const data = payload[0].payload;
+                    return (
+                      <div className="bg-white p-4 rounded-2xl shadow-xl border border-slate-50 flex flex-col gap-2">
+                        <p className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center justify-between gap-4">
+                          <span>{data.name} / {currentYear}</span>
+                          <span className={`text-[8px] px-1.5 py-0.5 rounded font-black ${
+                            data.isProjected ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'
+                          }`}>
+                            {data.isProjected ? 'PROJETADO' : 'REAL'}
+                          </span>
+                        </p>
+                        <p className="text-lg font-black text-slate-800">Total: {formatCurrency(data.balance)}</p>
+                        
+                        {/* Show individual account balances if that month has any recorded */}
+                        {(data.santander > 0 || data.inter > 0 || data.sofisa > 0) && (
+                          <>
+                            <div className="h-px bg-slate-100 my-1" />
+                            <div className="flex flex-col gap-1 text-[10px] text-slate-500 font-bold">
+                              {data.santander > 0 && <p className="flex justify-between gap-4"><span>Santander:</span> <span className="text-slate-800">{formatCurrency(data.santander)}</span></p>}
+                              {data.inter > 0 && <p className="flex justify-between gap-4"><span>Inter:</span> <span className="text-slate-800">{formatCurrency(data.inter)}</span></p>}
+                              {data.sofisa > 0 && <p className="flex justify-between gap-4"><span>Sofisa:</span> <span className="text-slate-800">{formatCurrency(data.sofisa)}</span></p>}
+                            </div>
+                          </>
+                        )}
+                        
+                        {data.isProjected && (
+                          <p className="text-[9px] font-medium text-slate-400 mt-1 max-w-[200px] leading-tight">
+                            * Projetado somando as sobras estimadas ao saldo do mês anterior.
+                          </p>
+                        )}
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
+              />
+              <Bar 
+                dataKey="balance" 
+                radius={[10, 10, 0, 0]} 
+                animationDuration={1500}
+                id="consolidated-balance-bar"
+              >
+                {monthlyBalanceData.map((entry, index) => (
+                  <Cell 
+                    key={`cell-${index}`} 
+                    fill={entry.isProjected ? 'url(#colorProjectedBar)' : 'url(#colorRealBar)'}
+                    stroke={entry.isProjected ? '#818cf8' : '#4f46e5'}
+                    strokeWidth={entry.isProjected ? 1 : 0}
+                    strokeDasharray={entry.isProjected ? "4 4" : "0"}
+                  />
+                ))}
+                <LabelList 
+                  dataKey="balance" 
+                  position="top" 
+                  offset={8}
+                  formatter={(val: number) => val > 0 ? `R$ ${Math.round(val)}` : ''}
+                  style={{ fontSize: '9px', fontWeight: '900', fill: '#475569' }}
+                />
+              </Bar>
+            </BarChart>
           </ResponsiveContainer>
         </div>
       </div>
